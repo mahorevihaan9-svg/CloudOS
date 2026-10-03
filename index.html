@@ -1,11 +1,359 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CloudOS</title>
-  </head>
-  <body>
-  </body>
-</html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudOS Liquid Glass Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Liquid Glass Engine Variables */
+            --glass-blur: 30px;
+            --glass-clarity: 150%;
+            --glass-refraction: 0.3;
+            --glass-bg: rgba(20, 20, 25, 0.4);
+            
+            --text-main: #ffffff;
+            --text-muted: #a0a0b0;
+            --accent: #007aff;
+            --window-border: rgba(255, 255, 255, 0.1);
+        }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; user-select: none; }
+        
+        body {
+            width: 100vw; height: 100vh; overflow: hidden;
+            background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=100&w=2564&auto=format&fit=crop');
+            background-size: cover; background-position: center; color: var(--text-main);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+
+        /* Liquid Glass Windows */
+        #window-container { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - 55px); pointer-events: none; }
+        .window {
+            position: absolute; width: 700px; height: 500px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-clarity));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-clarity));
+            border-radius: 16px; border: 1px solid rgba(255, 255, 255, calc(var(--glass-refraction) * 0.5));
+            box-shadow: 
+                0 30px 60px rgba(0,0,0,0.4), 
+                inset 0 1px 1px rgba(255, 255, 255, var(--glass-refraction)),
+                inset 1px 0 1px rgba(255, 255, 255, calc(var(--glass-refraction) * 0.3));
+            display: flex; flex-direction: column; pointer-events: all;
+            /* Improved Animations */
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                        width 0.4s, height 0.4s, top 0.4s, left 0.4s;
+            transform: scale(0.9) translateY(20px); opacity: 0; overflow: hidden;
+        }
+        .window.active { transform: scale(1) translateY(0); opacity: 1; }
+        .window.minimized { transform: scale(0.8) translateY(300px); opacity: 0; pointer-events: none; }
+        .window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; }
+        
+        .window-header {
+            height: 45px; background: rgba(0,0,0,0.15); display: flex; justify-content: space-between;
+            align-items: center; padding: 0 15px; cursor: grab; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .window-header:active { cursor: grabbing; }
+        .window-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .window-controls { display: flex; gap: 8px; }
+        .win-btn { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; border: none; transition: 0.2s;}
+        .btn-close { background: #ff5f56; } .btn-close:hover { background: #ff3b30; }
+        .btn-min { background: #ffbd2e; } .btn-min:hover { background: #e0a300; }
+        .btn-max { background: #27c93f; } .btn-max:hover { background: #1aab29; }
+        .window-content { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
+
+        /* Taskbar */
+        #taskbar {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 55px;
+            background: rgba(10, 10, 15, 0.6);
+            backdrop-filter: blur(40px) saturate(200%);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: center; align-items: center; padding: 0 20px; gap: 15px; z-index: 9000;
+        }
+        .taskbar-icon {
+            font-size: 26px; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; cursor: pointer; transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1); position: relative;
+        }
+        .taskbar-icon:hover { background: rgba(255,255,255,0.15); transform: translateY(-5px) scale(1.1); }
+        .taskbar-icon.open::after {
+            content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+            width: 4px; height: 4px; background: rgba(255,255,255,0.8); border-radius: 50%;
+        }
+
+        /* App Styles */
+        .glass-slider { width: 100%; margin: 10px 0 20px 0; accent-color: var(--accent); }
+        .settings-panel { padding: 25px; }
+        
+        /* Calculator */
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; flex: 1; }
+        .calc-btn { 
+            border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); 
+            background: rgba(255,255,255,0.05); color: white; font-size: 20px; cursor: pointer; transition: 0.1s;
+        }
+        .calc-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.15); }
+        
+        /* Browser */
+        .browser-bar { padding: 10px; background: rgba(0,0,0,0.2); display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .browser-input { flex: 1; padding: 8px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 13px; outline: none; }
+        
+        /* Cloud Store */
+        .store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; padding: 20px; }
+        .store-app { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .store-app:hover { background: rgba(255,255,255,0.15); transform: translateY(-3px); }
+    </style>
+</head>
+<body>
+
+    <div id="window-container"></div>
+    <div id="taskbar"></div>
+
+<script>
+    /* ---------------- APP REGISTRY ---------------- */
+    const APPS = {
+        settings: { id: 'settings', title: 'Liquid Engine', icon: '🎛️', width: 600, height: 450 },
+        browser: { id: 'browser', title: 'Browser', icon: '🌐', width: 900, height: 600 },
+        calc: { id: 'calc', title: 'Calculator', icon: '🧮', width: 320, height: 480 },
+        store: { id: 'store', title: 'Cloud Store', icon: '🛍️', width: 800, height: 500 }
+    };
+
+    let zIndex = 100;
+    let windows = {}; 
+
+    /* ---------------- SYSTEM INIT ---------------- */
+    function init() {
+        const tb = document.getElementById('taskbar');
+        Object.values(APPS).forEach(app => {
+            tb.innerHTML += `<div class="taskbar-icon" id="tb-${app.id}" onclick="toggleApp('${app.id}')" title="${app.title}">${app.icon}</div>`;
+        });
+        openApp('settings'); // Auto-open settings to show off sliders
+    }
+
+    /* ---------------- WINDOW MANAGER (FIXED DRAG) ---------------- */
+    function toggleApp(id) {
+        if(!windows[id]) openApp(id);
+        else {
+            const win = windows[id].el;
+            if(win.classList.contains('minimized')) {
+                win.classList.remove('minimized');
+                focusWin(win);
+            } else if(win.style.zIndex == zIndex) {
+                win.classList.add('minimized');
+            } else {
+                focusWin(win);
+            }
+        }
+    }
+
+    function openApp(id) {
+        const app = APPS[id];
+        const win = document.createElement('div');
+        win.className = 'window';
+        win.id = `win-${id}`;
+        win.style.width = app.width + 'px';
+        win.style.height = app.height + 'px';
+        win.style.top = '10%'; win.style.left = '20%';
+        
+        win.innerHTML = `
+            <div class="window-header">
+                <div class="window-title">${app.icon} ${app.title}</div>
+                <div class="window-controls">
+                    <button class="win-btn btn-min" onclick="windows['${id}'].el.classList.add('minimized')"></button>
+                    <button class="win-btn btn-max" onclick="document.getElementById('win-${id}').classList.toggle('maximized')"></button>
+                    <button class="win-btn btn-close" onclick="closeApp('${id}')"></button>
+                </div>
+            </div>
+            <div class="window-content" onmousedown="focusWin(this.parentElement)">
+                ${getAppHTML(id)}
+            </div>
+        `;
+
+        document.getElementById('window-container').appendChild(win);
+        document.getElementById(`tb-${id}`).classList.add('open');
+        
+        windows[id] = { el: win };
+        setupDrag(win, win.querySelector('.window-header'));
+        
+        requestAnimationFrame(() => { win.classList.add('active'); focusWin(win); });
+        
+        if(id === 'store') render10kApps();
+    }
+
+    function closeApp(id) {
+        const win = windows[id].el;
+        win.classList.remove('active');
+        win.style.transform = 'scale(0.8)'; win.style.opacity = '0';
+        setTimeout(() => win.remove(), 400);
+        document.getElementById(`tb-${id}`).classList.remove('open');
+        delete windows[id];
+    }
+
+    function focusWin(win) {
+        zIndex++; win.style.zIndex = zIndex;
+    }
+
+    // FIXED DRAG LOGIC
+    function setupDrag(win, header) {
+        let isDragging = false, startX, startY, initX, initY;
+        header.onmousedown = (e) => {
+            if(win.classList.contains('maximized')) return;
+            isDragging = true; focusWin(win);
+            startX = e.clientX; startY = e.clientY;
+            initX = win.offsetLeft; initY = win.offsetTop;
+            document.body.style.cursor = 'grabbing';
+            
+            document.onmousemove = (ev) => {
+                if(!isDragging) return;
+                win.style.left = (initX + ev.clientX - startX) + 'px';
+                win.style.top = Math.max(0, initY + ev.clientY - startY) + 'px';
+            };
+            
+            document.onmouseup = () => {
+                isDragging = false;
+                document.body.style.cursor = 'default';
+                document.onmousemove = null;
+                document.onmouseup = null;
+            };
+        };
+    }
+
+    /* ---------------- APP CONTENT RENDERERS ---------------- */
+    function getAppHTML(id) {
+        if(id === 'settings') return `
+            <div class="settings-panel">
+                <h2>Liquid Glass Engine (macOS 27)</h2>
+                <p style="color:var(--text-muted); font-size: 13px; margin-bottom: 25px;">Adjust the physics of the operating system window rendering.</p>
+                
+                <label>Blur Strength</label>
+                <input type="range" class="glass-slider" min="0" max="100" value="30" oninput="document.documentElement.style.setProperty('--glass-blur', this.value + 'px')">
+                
+                <label>Clarity & Saturation</label>
+                <input type="range" class="glass-slider" min="50" max="300" value="150" oninput="document.documentElement.style.setProperty('--glass-clarity', this.value + '%')">
+                
+                <label>Edge Refraction (Light Bounce)</label>
+                <input type="range" class="glass-slider" min="0" max="100" value="30" oninput="document.documentElement.style.setProperty('--glass-refraction', this.value / 100)">
+            </div>
+        `;
+
+        if(id === 'calc') return `
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <div style="padding: 20px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1);">
+                    <div id="calc-preview" style="font-size: 14px; color: var(--text-muted); min-height: 20px;"></div>
+                    <div id="calc-display" style="font-size: 48px; font-weight: 300; margin-top: 5px;">0</div>
+                </div>
+                <div class="calc-grid">
+                    ${['C','(',')','÷', '7','8','9','×', '4','5','6','-', '1','2','3','+', '0','.','='].map(b => `
+                        <button class="calc-btn" style="${b==='0'?'grid-column: span 2':''}${['÷','×','-','+','='].includes(b)?'background: var(--accent)':''}" onclick="calcInput('${b}')">${b}</button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        if(id === 'browser') return `
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <div class="browser-bar">
+                    <button style="background:none;border:none;color:white;cursor:pointer">◀</button>
+                    <button style="background:none;border:none;color:white;cursor:pointer">▶</button>
+                    <button style="background:none;border:none;color:white;cursor:pointer">↻</button>
+                    <input type="text" class="browser-input" value="https://google.com" readonly>
+                </div>
+                <div id="browser-view" style="flex:1; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #333;">
+                    <h1 style="font-size: 64px; margin-bottom: 30px; background: -webkit-linear-gradient(45deg, #4285F4, #EA4335, #FBBC05, #34A853); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google</h1>
+                    <input type="text" placeholder="Search Google or type a URL" onkeydown="if(event.key==='Enter') executeSearch(this.value)" style="width: 500px; padding: 15px 25px; border-radius: 30px; border: 1px solid #dfe1e5; box-shadow: 0 1px 6px rgba(32,33,36,.28); font-size: 16px; outline: none;">
+                    <div style="margin-top: 25px; display: flex; gap: 10px;">
+                        <button style="padding: 10px 20px; background: #f8f9fa; border: 1px solid #f8f9fa; border-radius: 4px; cursor:pointer;">Google Search</button>
+                        <button style="padding: 10px 20px; background: #f8f9fa; border: 1px solid #f8f9fa; border-radius: 4px; cursor:pointer;">I'm Feeling Lucky</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if(id === 'store') return `
+            <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <h2>Cloud Store</h2>
+                <p style="color: var(--text-muted); font-size: 13px;">Displaying 10,038 Programmatically Generated Apps</p>
+            </div>
+            <div class="store-grid" id="store-grid" style="overflow-y: auto;"></div>
+        `;
+    }
+
+    /* ---------------- APP LOGIC ---------------- */
+    
+    // Calculator Logic
+    let calcStr = "";
+    function calcInput(val) {
+        const prev = document.getElementById('calc-preview');
+        const disp = document.getElementById('calc-display');
+        if(val === 'C') { calcStr = ""; prev.innerText = ""; disp.innerText = "0"; return; }
+        if(val === '=') {
+            try { 
+                let mathStr = calcStr.replace(/×/g, '*').replace(/÷/g, '/');
+                let res = eval(mathStr); 
+                prev.innerText = calcStr + " =";
+                disp.innerText = res;
+                calcStr = res.toString();
+            } catch(e) { disp.innerText = "Error"; }
+            return;
+        }
+        calcStr += val;
+        prev.innerText = calcStr;
+        disp.innerText = calcStr;
+    }
+
+    // Google Browser Logic
+    function executeSearch(query) {
+        const view = document.getElementById('browser-view');
+        // We simulate a search results page since we cannot iframe Google directly due to X-Frame-Options
+        view.style.justifyContent = 'flex-start';
+        view.style.alignItems = 'flex-start';
+        view.style.padding = '20px';
+        view.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px; width: 100%; border-bottom: 1px solid #eee; padding-bottom: 15px;">
+                <h2 style="color: #4285F4; margin: 0;">Google</h2>
+                <input type="text" value="${query}" style="width: 400px; padding: 10px 15px; border-radius: 20px; border: 1px solid #dfe1e5;">
+            </div>
+            <div style="color: #70757a; font-size: 14px; margin-bottom: 20px;">About 282,901,832 results (0.42 seconds)</div>
+            
+            <div style="max-width: 600px; margin-bottom: 25px;">
+                <div style="font-size: 12px; color: #202124;">https://en.wikipedia.org › wiki › ${query.split(' ')[0]}</div>
+                <h3 style="color: #1a0dab; font-size: 20px; margin: 5px 0; cursor:pointer; text-decoration: underline;">${query} - Wikipedia</h3>
+                <p style="color: #4d5156; font-size: 14px; line-height: 1.5;">Comprehensive information and history regarding <b>${query}</b>. This result was generated dynamically inside the CloudOS Liquid browser engine...</p>
+            </div>
+            
+            <div style="max-width: 600px;">
+                <div style="font-size: 12px; color: #202124;">https://www.cloudos.net › updates</div>
+                <h3 style="color: #1a0dab; font-size: 20px; margin: 5px 0; cursor:pointer;">CloudOS fixes 282,901,832 bugs</h3>
+                <p style="color: #4d5156; font-size: 14px; line-height: 1.5;">The latest update brings massive improvements to window dragging, glassmorphism UI, and custom calculator previews.</p>
+            </div>
+        `;
+    }
+
+    // Generate 10,038 Apps
+    function render10kApps() {
+        const grid = document.getElementById('store-grid');
+        const icons = ['📱','🎮','🎵','📸','🎨','💼','🍔','✈️','🏃','📚'];
+        const prefixes = ['Cloud','Pro','Max','Ultra','Smart','Super','Next','Liquid','Nano'];
+        const suffixes = ['Hub','Sync','Master','Plus','App','Tool','Studio','Suite'];
+        
+        let html = '';
+        // Doing batch rendering to prevent UI freeze
+        for(let i = 1; i <= 10038; i++) {
+            let icon = icons[Math.floor(Math.random() * icons.length)];
+            let name = prefixes[Math.floor(Math.random() * prefixes.length)] + " " + suffixes[Math.floor(Math.random() * suffixes.length)];
+            html += `
+                <div class="store-app">
+                    <div style="font-size: 32px; margin-bottom: 10px;">${icon}</div>
+                    <div style="font-size: 12px; font-weight: 500;">${name}</div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 5px;">App #${i}</div>
+                </div>
+            `;
+        }
+        grid.innerHTML = html;
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
